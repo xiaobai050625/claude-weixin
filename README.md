@@ -20,17 +20,13 @@
 
 你需要 [Bun](https://bun.sh)、[Claude Code](https://code.claude.com) >= 2.1.81、微信 iOS 最新版（需支持 ClawBot 插件）。ffmpeg + ffprobe 可选（用于视频帧提取）。
 
-**0. 在微信中启用 ClawBot**
-
-iOS 微信更新到最新版，进入"我 → 设置 → 插件"，找到 ClawBot 并启用。目前仅 iOS 支持。
-
-**1. 扫码登录**
+**1. 微信扫码登录**
 
 ```bash
 npx claude-code-wechat setup
 ```
 
-终端出二维码，微信扫，确认。
+终端显示二维码，用微信扫描并确认。凭据保存到 `~/.claude/channels/wechat/account.json`。
 
 **2. 生成 MCP 配置**
 
@@ -38,44 +34,21 @@ npx claude-code-wechat setup
 npx claude-code-wechat install
 ```
 
-自动生成 `.mcp.json`，不用手动编辑配置文件。
+自动在当前目录生成 `.mcp.json`，指向本插件。
 
-> 也可以从源码安装：`git clone https://github.com/LinekForge/claude-code-wechat.git && cd claude-code-wechat && bun install`，然后 `bun setup.ts`。
-
-终端出二维码，微信扫，确认。凭据存到 `~/.claude/channels/wechat/account.json`。
-
-**3. 设置白名单**
-
-第一次用，开自动添加——下一个给 ClawBot 发消息的人自动进白名单：
-
-```bash
-bun setup.ts --allow-all
-```
-
-> 也可以手动加：`bun setup.ts --allow <sender_id> <昵称>`。不在白名单的消息静默丢弃，防 prompt injection。
-
-**4. 注册 MCP Server**
-
-在 Claude Code 的 MCP 配置中添加 wechat server。配置文件位置为 `~/.claude.json`（全局 `mcpServers` 字段）：
-
-```json
-{
-  "wechat": {
-    "command": "/path/to/bun",
-    "args": ["/absolute/path/to/claude-code-wechat/wechat-channel.ts"]
-  }
-}
-```
-
-用绝对路径。`which bun` 查 bun 在哪。
-
-> `--dangerously-load-development-channels server:wechat` 中的 `wechat` 需要和配置里的 server name 一致。
-
-**5. 启动**
+**3. 启动 Claude Code + WeChat 通道**
 
 ```bash
 claude --dangerously-load-development-channels server:wechat
 ```
+
+**4. 在微信中发消息**
+
+打开微信，找到 ClawBot 对话，发送消息。消息会出现在 Claude Code 终端中，Claude 的回复会自动发回微信。
+
+> 首次使用时，第一个发消息的人会自动加入白名单。也可以手动管理：`npx claude-code-wechat setup --allow <id> <昵称>`。
+>
+> 从源码安装：`git clone https://github.com/LinekForge/claude-code-wechat.git && cd claude-code-wechat && bun install`，然后 `bun setup.ts`。
 
 > `--dangerously-load-development-channels` 是 research preview 阶段测试自定义 Channel 的官方方式。名字里的 "dangerously" 指的是安全提醒（未审核的插件可能有 prompt injection 风险），不是违反使用条款。
 
