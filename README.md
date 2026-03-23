@@ -24,13 +24,21 @@
 
 iOS 微信更新到最新版，进入"我 → 设置 → 插件"，找到 ClawBot 并启用。目前仅 iOS 支持。
 
-**1. 安装 + 扫码登录**
+**1. 扫码登录**
 
 ```bash
 npx claude-code-wechat setup
 ```
 
-一行搞定：安装、显示二维码、微信扫码确认。
+终端出二维码，微信扫，确认。
+
+**2. 生成 MCP 配置**
+
+```bash
+npx claude-code-wechat install
+```
+
+自动生成 `.mcp.json`，不用手动编辑配置文件。
 
 > 也可以从源码安装：`git clone https://github.com/LinekForge/claude-code-wechat.git && cd claude-code-wechat && bun install`，然后 `bun setup.ts`。
 

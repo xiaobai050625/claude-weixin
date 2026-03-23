@@ -1259,16 +1259,49 @@ var init_setup = __esm(async () => {
 });
 
 // cli.ts
+import fs2 from "node:fs";
+import path2 from "node:path";
 var args2 = process.argv.slice(2);
 var cmd = args2[0];
 if (cmd === "setup") {
   process.argv = [process.argv[0], "setup.ts", ...args2.slice(1)];
   await init_setup().then(() => exports_setup);
+} else if (cmd === "install") {
+  let pkgDir = path2.dirname(new URL(import.meta.url).pathname);
+  if (pkgDir.endsWith("/dist"))
+    pkgDir = path2.dirname(pkgDir);
+  const serverPath = path2.join(pkgDir, "wechat-channel.ts");
+  const bunPath = process.env.BUN_INSTALL ? path2.join(process.env.BUN_INSTALL, "bin", "bun") : "bun";
+  const mcpConfig = {
+    mcpServers: {
+      wechat: {
+        command: bunPath,
+        args: [serverPath]
+      }
+    }
+  };
+  const mcpJsonPath = path2.join(process.cwd(), ".mcp.json");
+  let existing = {};
+  try {
+    existing = JSON.parse(fs2.readFileSync(mcpJsonPath, "utf-8"));
+  } catch {}
+  if (!existing.mcpServers)
+    existing.mcpServers = {};
+  existing.mcpServers.wechat = mcpConfig.mcpServers.wechat;
+  fs2.writeFileSync(mcpJsonPath, JSON.stringify(existing, null, 2) + `
+`, "utf-8");
+  console.log(`✅ MCP 配置已写入 ${mcpJsonPath}`);
+  console.log(`   server: ${serverPath}`);
+  console.log(`   command: ${bunPath}`);
+  console.log();
+  console.log("下一步：");
+  console.log("  claude --dangerously-load-development-channels server:wechat");
 } else {
-  console.log(`claude-code-wechat v0.1.0
+  console.log(`claude-code-wechat v0.2.0
 
 Usage:
   npx claude-code-wechat setup              扫码登录微信
+  npx claude-code-wechat install             生成 MCP 配置
   npx claude-code-wechat setup --allow-all  开启自动白名单
   npx claude-code-wechat setup --allow ID   添加白名单
   npx claude-code-wechat setup --list       查看白名单
