@@ -1,0 +1,12 @@
+{
+  "fixed": [
+    { "hour": 9, "minute": 0, "label": "morning" },
+    { "hour": 22, "minute": 0, "label": "night" }
+  ],
+  "random": {
+    "active_start": 9,
+    "active_end": 22,
+    "daily_count": 10,
+    "min_per_hour": 1
+  }
+}

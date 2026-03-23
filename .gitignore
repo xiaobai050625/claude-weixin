@@ -1,0 +1,21 @@
+node_modules/
+bun.lock
+
+# Credentials & runtime state
+account.json
+allowlist.json
+context_tokens.json
+chat_history.jsonl
+sync_buf.txt
+heartbeat-config.json
+heartbeat-schedule.json
+
+# Media files
+media/
+
+# Debug files
+media_debug.json
+msg_debug.jsonl
+permission_handler_registered.txt
+unhandled.jsonl
+voice_send_debug.json
