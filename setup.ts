@@ -137,7 +137,9 @@ interface QRStatusResponse {
 async function fetchQRCode(): Promise<QRCodeResponse> {
   const url = `${BASE_URL}/ilink/bot/get_bot_qrcode?bot_type=${BOT_TYPE}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`QR fetch failed: ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`获取微信登录二维码失败：HTTP ${res.status}。下一步：确认网络能访问 ${BASE_URL}，然后在仓库目录重新运行 bun cli.ts setup。`);
+  }
   return (await res.json()) as QRCodeResponse;
 }
 
@@ -151,7 +153,9 @@ async function pollQRStatus(qrcode: string): Promise<QRStatusResponse> {
       signal: controller.signal,
     });
     clearTimeout(timer);
-    if (!res.ok) throw new Error(`QR status failed: ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`检查二维码扫码状态失败：HTTP ${res.status}。下一步：保持终端打开并重试；如果持续失败，在仓库目录重新运行 bun cli.ts setup。`);
+    }
     return (await res.json()) as QRStatusResponse;
   } catch (err) {
     clearTimeout(timer);
@@ -224,12 +228,12 @@ while (Date.now() < deadline) {
       }
       break;
     case "expired":
-      console.log("\n二维码已过期，请重新运行。");
+      console.log("\n二维码已过期。下一步：在仓库目录重新运行 bun cli.ts setup，并让用户重新扫码。");
       process.exit(1);
       break;
     case "confirmed": {
       if (!status.ilink_bot_id || !status.bot_token) {
-        console.error("\n登录失败：服务器未返回完整信息。");
+        console.error("\n登录失败：微信服务器未返回完整账号信息。下一步：在仓库目录重新运行 bun cli.ts setup；如果持续失败，检查 ClawBot/iLink 是否可用。");
         process.exit(1);
       }
 
@@ -249,13 +253,14 @@ while (Date.now() < deadline) {
       console.log(`   凭据保存至: ${CRED_FILE}`);
       console.log();
       console.log("下一步：");
-      console.log("  1. bun setup.ts --allow-all    （开启自动 allowlist）");
-      console.log("  2. claude --dangerously-load-development-channels server:wechat");
+      console.log("  1. 在目标项目目录运行 bun /path/to/claude-code-wechat/cli.ts install");
+      console.log("  2. 运行 bun /path/to/claude-code-wechat/cli.ts doctor 检查状态");
+      console.log("  3. 启动 claude --dangerously-load-development-channels server:wechat");
       process.exit(0);
     }
   }
   await new Promise((r) => setTimeout(r, 1000));
 }
 
-console.log("\n登录超时，请重新运行。");
+console.log("\n登录超时。下一步：在仓库目录重新运行 bun cli.ts setup，并在 8 分钟内完成扫码和微信确认。");
 process.exit(1);

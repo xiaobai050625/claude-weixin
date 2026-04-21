@@ -40,10 +40,26 @@ export const REPLAY_MAX = 200;
 
 // ── Logging (stderr only — stdout is MCP stdio) ─────────────────────────────
 
+export function sanitizeText(value: unknown): string {
+  return String(value)
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [redacted]")
+    .replace(/bot\d+:[A-Za-z0-9_-]+/g, "bot[redacted]")
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-[redacted]")
+    .replace(/(token|bot_token|access_token|refresh_token|api_key|apikey|secret)(["']?\s*[:=]\s*["']?)[^"',\s}]+/gi, "$1$2[redacted]")
+    .replace(/([?&](?:token|access_token|bot_token|key|secret)=)[^&\s]+/gi, "$1[redacted]");
+}
+
+export function errorText(err: unknown): string {
+  if (err instanceof Error && err.name === "AbortError") {
+    return "请求超时";
+  }
+  return sanitizeText(err);
+}
+
 export function log(msg: string) {
   process.stderr.write(`[wechat] ${msg}\n`);
 }
 
 export function logError(msg: string) {
-  process.stderr.write(`[wechat] ERROR: ${msg}\n`);
+  process.stderr.write(`[wechat] ERROR: ${sanitizeText(msg)}\n`);
 }

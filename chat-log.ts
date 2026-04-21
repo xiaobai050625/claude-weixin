@@ -4,7 +4,7 @@
 
 import fs from "node:fs";
 
-import { CTX_FILE, CHAT_LOG_FILE, REPLAY_MAX, log, logError } from "./config.js";
+import { CTX_FILE, CHAT_LOG_FILE, REPLAY_MAX, errorText, log, logError } from "./config.js";
 import type { ChatLogEntry } from "./types.js";
 
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -97,6 +97,6 @@ export async function replayHistory(server: InstanceType<typeof Server>): Promis
 
     log(`✅ 已回放 ${entries.length} 条历史消息`);
   } catch (err) {
-    logError(`历史回放失败: ${String(err)}`);
+    logError(`历史回放失败: ${errorText(err)}。下一步：检查 ~/.claude/channels/wechat/chat_history.jsonl 是否损坏；损坏时可先备份后清空该文件。`);
   }
 }

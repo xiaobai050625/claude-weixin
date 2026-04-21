@@ -12,6 +12,7 @@ import {
   CDN_DOWNLOAD_URL,
   CDN_UPLOAD_URL,
   MEDIA_DIR,
+  errorText,
   log,
   logError,
 } from "./config.js";
@@ -179,7 +180,7 @@ export async function downloadMediaItem(item: MessageItem): Promise<DownloadedMe
           log(`📎 视频音频: ${audioFile}`);
         } catch {}
       } catch (err) {
-        logError(`视频处理失败: ${String(err)}`);
+        logError(`视频处理失败: ${errorText(err)}。下一步：确认 ffmpeg/ffprobe 已安装；否则视频仍会保存，但不会抽帧。`);
       }
 
       return { type: "video", filePath, fileName };
@@ -200,10 +201,10 @@ export async function downloadMediaItem(item: MessageItem): Promise<DownloadedMe
       return { type: "voice", filePath, fileName };
     }
   } catch (err) {
-    logError(`媒体下载失败: ${String(err)}`);
+    logError(`媒体下载失败: ${errorText(err)}。下一步：确认微信媒体链接仍有效，或让用户重新发送该媒体。`);
     // Tier 2: log failed media item
     try {
-      const entry = { ts: new Date().toISOString(), type: "media_failed", item_type: item.type, error: String(err), item };
+      const entry = { ts: new Date().toISOString(), type: "media_failed", item_type: item.type, error: errorText(err), item };
       fs.appendFileSync(path.join(DIR, "unhandled.jsonl"), JSON.stringify(entry) + "\n", "utf-8");
     } catch {}
   }

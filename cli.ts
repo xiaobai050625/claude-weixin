@@ -1,10 +1,11 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
- * CLI entry point for npx claude-code-wechat.
+ * CLI entry point for source installs.
  */
 
 import fs from "node:fs";
 import path from "node:path";
+import { printDoctor } from "./doctor.js";
 
 const args = process.argv.slice(2);
 const cmd = args[0];
@@ -16,19 +17,13 @@ if (cmd === "setup") {
   // Generate .mcp.json in current directory
   // Find the package root (where package.json is)
   let pkgDir = path.dirname(new URL(import.meta.url).pathname);
-  // If running from dist/, go up one level
-  if (pkgDir.endsWith("/dist")) pkgDir = path.dirname(pkgDir);
-  // Use compiled JS (node-compatible) by default, fall back to .ts (bun) if dist doesn't exist
-  const distServer = path.join(pkgDir, "dist", "wechat-channel.js");
   const srcServer = path.join(pkgDir, "wechat-channel.ts");
-  const serverPath = fs.existsSync(distServer) ? distServer : srcServer;
-  const command = serverPath.endsWith(".js") ? "node" : "bun";
 
   const mcpConfig = {
     mcpServers: {
       wechat: {
-        command: command,
-        args: [serverPath],
+        command: "bun",
+        args: [srcServer],
       },
     },
   };
@@ -48,20 +43,23 @@ if (cmd === "setup") {
   fs.writeFileSync(mcpJsonPath, JSON.stringify(existing, null, 2) + "\n", "utf-8");
 
   console.log(`✅ MCP 配置已写入 ${mcpJsonPath}`);
-  console.log(`   server: ${serverPath}`);
-  console.log(`   command: ${command}`);
+  console.log(`   server: ${srcServer}`);
+  console.log(`   command: bun`);
   console.log();
   console.log("下一步：");
   console.log("  claude --dangerously-load-development-channels server:wechat");
+} else if (cmd === "doctor") {
+  printDoctor();
 } else {
-  console.log(`claude-code-wechat v0.2.0
+  console.log(`claude-code-wechat v0.4.0
 
 Usage:
-  npx claude-code-wechat setup              扫码登录微信
-  npx claude-code-wechat install             生成 MCP 配置
-  npx claude-code-wechat setup --allow-all  开启自动白名单
-  npx claude-code-wechat setup --allow ID   添加白名单
-  npx claude-code-wechat setup --list       查看白名单
+  bun cli.ts setup              扫码登录微信
+  bun cli.ts install            生成 MCP 配置
+  bun cli.ts doctor             检查本机配置状态
+  bun cli.ts setup --allow-all  开启自动白名单
+  bun cli.ts setup --allow ID   添加白名单
+  bun cli.ts setup --list       查看白名单
 
 启动 Channel:
   claude --dangerously-load-development-channels server:wechat

@@ -8,7 +8,7 @@ import path from "node:path";
 
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 
-import { DIR, log, logError } from "./config.js";
+import { DIR, errorText, log, logError } from "./config.js";
 import type { HBConfig, HBScheduleEntry } from "./types.js";
 import { loadAllowlist } from "./allowlist.js";
 
@@ -137,7 +137,7 @@ export function reloadHeartbeat(server: Server): number {
     const delayMs = t.getTime() - now.getTime();
     if (delayMs > 0) {
       heartbeatTimers.push(setTimeout(() => {
-        fireHeartbeat(entry).catch(err => logError(`Heartbeat error: ${String(err)}`));
+        fireHeartbeat(entry).catch(err => logError(`Heartbeat error: ${errorText(err)}。下一步：确认 Claude Code channel 仍在运行。`));
       }, delayMs));
       scheduled++;
     }
@@ -173,7 +173,7 @@ export function startConfigWatcher(server: Server) {
 
     log("👁 fs.watch: 监听配置目录");
   } catch (err) {
-    logError(`fs.watch 启动失败: ${String(err)}`);
+    logError(`fs.watch 启动失败: ${errorText(err)}。下一步：手动调用 wechat_reload_heartbeat 刷新心跳配置。`);
   }
 }
 

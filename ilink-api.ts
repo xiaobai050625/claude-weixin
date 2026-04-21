@@ -5,7 +5,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 
-import { CRED_FILE, CHANNEL_VERSION, LONG_POLL_TIMEOUT_MS } from "./config.js";
+import { CRED_FILE, CHANNEL_VERSION, LONG_POLL_TIMEOUT_MS, sanitizeText } from "./config.js";
 import type { AccountData, GetUpdatesResp } from "./types.js";
 import { MSG_TYPE_BOT, MSG_STATE_FINISH, MSG_ITEM_TEXT } from "./types.js";
 
@@ -57,7 +57,7 @@ export async function apiFetch(params: {
     });
     clearTimeout(timer);
     const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${sanitizeText(text)}`);
     return { text, status: res.status };
   } catch (err) {
     clearTimeout(timer);

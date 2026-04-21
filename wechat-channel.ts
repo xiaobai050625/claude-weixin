@@ -28,6 +28,7 @@ import {
   MAX_CONSECUTIVE_FAILURES,
   BACKOFF_DELAY_MS,
   RETRY_DELAY_MS,
+  errorText,
   log,
   logError,
 } from "./config.js";
@@ -52,6 +53,24 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 30;
 const outboundTimestamps: number[] = [];
 
+const LOGIN_REQUIRED = [
+  "未找到微信登录信息。",
+  "下一步：在 claude-code-wechat 仓库目录运行 bun cli.ts setup。",
+  "需要用户用微信扫码登录。",
+].join("\n");
+
+const RATE_LIMITED = [
+  "发送太快，已触发微信出站消息限速。",
+  `下一步：等待约 ${Math.ceil(RATE_LIMIT_WINDOW_MS / 1000)} 秒后重试。`,
+].join("\n");
+
+function missingContextMessage(senderId: string): string {
+  return [
+    `无法发送：缺少 ${senderId} 的 context_token。`,
+    "下一步：请让这个微信用户先给 ClawBot 发一条消息，然后再重试。",
+  ].join("\n");
+}
+
 function checkRateLimit(): boolean {
   const now = Date.now();
   // Remove timestamps outside window
@@ -71,7 +90,7 @@ function checkRateLimit(): boolean {
 try {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
 } catch (err) {
-  logError(`创建 media 目录失败: ${String(err)}`);
+  logError(`创建 media 目录失败: ${errorText(err)}。下一步：检查 ~/.claude/channels/wechat 目录权限。`);
 }
 
 // ── MCP Channel Server ──────────────────────────────────────────────────────
@@ -140,7 +159,7 @@ mcp.setNotificationHandler(PermissionRequestSchema, async ({ params }) => {
       await sendText(account.baseUrl, account.token, entry.id, prompt, ctxToken);
       log(`🔐 权限请求已直发微信: ${params.tool_name} (${params.request_id})`);
     } catch (err) {
-      logError(`权限请求发送失败: ${String(err)}`);
+      logError(`权限请求发送失败: ${errorText(err)}。下一步：确认该用户最近发过消息并且 context_token 仍有效。`);
     }
   }
 });
@@ -222,7 +241,7 @@ let account: AccountData | null = null;
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (!account) {
     return {
-      content: [{ type: "text" as const, text: "error: 未登录" }],
+      content: [{ type: "text" as const, text: LOGIN_REQUIRED }],
     };
   }
 
@@ -240,7 +259,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       return {
         content: [{
           type: "text" as const,
-          text: `reload failed: ${String(err)}`,
+          text: `heartbeat 重载失败。\n下一步：检查 ~/.claude/channels/wechat/heartbeat-config.json 是否是合法 JSON。\n详情：${errorText(err)}`,
         }],
       };
     }
@@ -258,13 +277,13 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (!ctxToken) {
       return {
         content: [
-          { type: "text" as const, text: `error: 没有 ${sender_id} 的 context_token` },
+          { type: "text" as const, text: missingContextMessage(sender_id) },
         ],
       };
     }
 
     if (!checkRateLimit()) {
-      return { content: [{ type: "text" as const, text: "error: 出站消息速率限制，请稍后重试" }] };
+      return { content: [{ type: "text" as const, text: RATE_LIMITED }] };
     }
 
     try {
@@ -307,7 +326,10 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
 
       if (!fs.existsSync(localPath)) {
         return {
-          content: [{ type: "text" as const, text: `error: 文件不存在: ${localPath}` }],
+          content: [{
+            type: "text" as const,
+            text: `文件不存在：${localPath}\n下一步：传入本机存在的绝对路径，或传入可访问的 HTTPS URL。`,
+          }],
         };
       }
 
@@ -323,10 +345,10 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       });
       return { content: [{ type: "text" as const, text: `sent: ${displayName}` }] };
     } catch (err) {
-      const errMsg = String(err);
+      const errMsg = errorText(err);
       logError(`文件发送失败: ${errMsg}`);
       return {
-        content: [{ type: "text" as const, text: `发送失败: ${errMsg}` }],
+        content: [{ type: "text" as const, text: `文件发送失败。\n下一步：确认文件路径/URL 可访问，文件大小不超过 100MB，然后重试。\n详情：${errMsg}` }],
       };
     }
   }
@@ -341,12 +363,12 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
     const ctxToken = contextTokens.get(sender_id);
     if (!ctxToken) {
       return {
-        content: [{ type: "text" as const, text: `error: 没有 ${sender_id} 的 context_token` }],
+        content: [{ type: "text" as const, text: missingContextMessage(sender_id) }],
       };
     }
 
     if (!checkRateLimit()) {
-      return { content: [{ type: "text" as const, text: "error: 出站消息速率限制，请稍后重试" }] };
+      return { content: [{ type: "text" as const, text: RATE_LIMITED }] };
     }
 
     try {
@@ -367,17 +389,17 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       });
       return { content: [{ type: "text" as const, text: `voice sent: "${text.slice(0, 50)}"` }] };
     } catch (err) {
-      const errMsg = String(err);
+      const errMsg = errorText(err);
       logError(`语音发送失败: ${errMsg}`);
       return {
-        content: [{ type: "text" as const, text: `语音发送失败: ${errMsg}` }],
+        content: [{ type: "text" as const, text: `语音发送失败。\n下一步：确认 ~/.claude/scripts/minimax-voice.sh 存在且可执行；不需要语音时请改用 wechat_reply。\n详情：${errMsg}` }],
       };
     }
   }
 
   // ── wechat_reply ──
   if (req.params.name !== "wechat_reply") {
-    throw new Error(`unknown tool: ${req.params.name}`);
+    throw new Error(`未知工具：${req.params.name}。可用工具：wechat_reply、wechat_send_file、wechat_send_voice、wechat_reload_heartbeat。`);
   }
 
   const { sender_id, text } = req.params.arguments as {
@@ -391,14 +413,14 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       content: [
         {
           type: "text" as const,
-          text: `error: 没有 ${sender_id} 的 context_token，需要对方先发一条消息。`,
+          text: missingContextMessage(sender_id),
         },
       ],
     };
   }
 
   if (!checkRateLimit()) {
-    return { content: [{ type: "text" as const, text: "error: 出站消息速率限制，请稍后重试" }] };
+    return { content: [{ type: "text" as const, text: RATE_LIMITED }] };
   }
 
   try {
@@ -416,14 +438,14 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
 
     return { content: [{ type: "text" as const, text: "sent" }] };
   } catch (err) {
-    const errMsg = String(err);
+    const errMsg = errorText(err);
     // Token expired detection
     if (errMsg.includes("401") || errMsg.includes("unauthorized") || errMsg.includes("token")) {
-      logError(`bot_token 可能已过期。请重新运行: cd ~/.claude/channels/wechat && bun setup.ts`);
+      logError("bot_token 可能已过期。下一步：在 claude-code-wechat 仓库目录运行 bun cli.ts setup，并让用户重新扫码。");
     }
     return {
       content: [
-        { type: "text" as const, text: `发送失败: ${errMsg}` },
+        { type: "text" as const, text: `微信回复发送失败。\n下一步：如果详情包含 401/token/auth，请在 claude-code-wechat 仓库目录运行 bun cli.ts setup 重新扫码；否则稍后重试。\n详情：${errMsg}` },
       ],
     };
   }
@@ -464,7 +486,7 @@ async function startPolling(acct: AccountData): Promise<never> {
 
         // Token expired detection
         if (errMsg.includes("token") || errMsg.includes("auth") || resp.errcode === 401) {
-          logError(`bot_token 可能已过期。请重新运行: cd ~/.claude/channels/wechat && bun setup.ts`);
+          logError("bot_token 可能已过期。下一步：在 claude-code-wechat 仓库目录运行 bun cli.ts setup，并让用户重新扫码。");
         }
 
         logError(
@@ -564,7 +586,7 @@ async function startPolling(acct: AccountData): Promise<never> {
       }
     } catch (err) {
       consecutiveFailures++;
-      logError(`轮询异常: ${String(err)}`);
+      logError(`轮询异常: ${errorText(err)}。下一步：如果连续出现 auth/token/401，请在 claude-code-wechat 仓库目录运行 bun cli.ts setup 重新扫码。`);
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         consecutiveFailures = 0;
         await new Promise((r) => setTimeout(r, BACKOFF_DELAY_MS));
@@ -579,7 +601,7 @@ async function startPolling(acct: AccountData): Promise<never> {
 
 async function main() {
   process.on('unhandledRejection', (reason) => {
-    logError(`Unhandled rejection: ${String(reason)}`);
+    logError(`Unhandled rejection: ${errorText(reason)}`);
   });
 
   await mcp.connect(new StdioServerTransport());
@@ -587,7 +609,7 @@ async function main() {
 
   const creds = loadCredentials();
   if (!creds) {
-    logError("未找到凭据。请先运行: cd ~/.claude/channels/wechat && bun setup.ts");
+    logError(LOGIN_REQUIRED);
     process.exit(1);
   }
   account = creds;
@@ -618,6 +640,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  logError(`Fatal: ${String(err)}`);
+  logError(`Fatal: ${errorText(err)}`);
   process.exit(1);
 });
