@@ -10,4 +10,4 @@ echo °´ Ctrl+C Í£Ö¹¡£
 echo ========================================
 echo.
 bun daemon.ts
-pause >nul
+pause >nul

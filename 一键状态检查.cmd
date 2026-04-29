@@ -8,4 +8,4 @@ bun cli.ts doctor
 echo.
 echo ========================================
 echo 按任意键关闭...
-pause >nul
+pause >nul
