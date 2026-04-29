@@ -1,5 +1,6 @@
 node_modules/
 bun.lock
+.mcp.json
 
 # Credentials & runtime state
 account.json
