@@ -54,6 +54,42 @@ export function loadChatLog(): ChatLogEntry[] {
   }
 }
 
+/**
+ * 只读取文件尾部最近的 N 条聊天记录，避免全量加载。
+ * JSONL 每条约 150-300 字节，读 16KB 足够覆盖几十条。
+ */
+export function loadRecentChatLog(maxEntries: number): ChatLogEntry[] {
+  try {
+    if (!fs.existsSync(CHAT_LOG_FILE)) return [];
+    const stat = fs.statSync(CHAT_LOG_FILE);
+    if (stat.size === 0) return [];
+
+    // 只读尾部
+    const tailSize = Math.min(stat.size, 16 * 1024);
+    const fd = fs.openSync(CHAT_LOG_FILE, "r");
+    const buf = Buffer.alloc(tailSize);
+    fs.readSync(fd, buf, 0, tailSize, stat.size - tailSize);
+    fs.closeSync(fd);
+
+    const raw = buf.toString("utf-8");
+    // 跳过第一条可能不完整的行
+    const lines = raw.split("\n");
+    const cleanLines = raw.charCodeAt(0) !== 0x7B ? lines.slice(1) : lines;
+
+    const entries: ChatLogEntry[] = [];
+    for (const line of cleanLines) {
+      try {
+        entries.push(JSON.parse(line));
+      } catch {
+        // 跳过损坏的行
+      }
+    }
+    return entries.slice(-maxEntries);
+  } catch {
+    return [];
+  }
+}
+
 export function appendChatLog(entry: ChatLogEntry): void {
   try {
     fs.appendFileSync(CHAT_LOG_FILE, JSON.stringify(entry) + "\n", { encoding: "utf-8", mode: 0o600 });

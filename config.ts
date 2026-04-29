@@ -33,7 +33,7 @@ export const LONG_POLL_TIMEOUT_MS = 35_000;
 export const MAX_CONSECUTIVE_FAILURES = 3;
 export const BACKOFF_DELAY_MS = 30_000;
 export const RETRY_DELAY_MS = 2_000;
-export const REPLAY_MAX = 200;
+export const REPLAY_MAX = 20;
 
 // ── 日志 (stderr — 不影响 stdout) ─────────────────────────────────────────────
 

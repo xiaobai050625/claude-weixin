@@ -39,7 +39,7 @@ import {
   loadContextTokens,
   saveContextTokens,
   appendChatLog,
-  loadChatLog,
+  loadRecentChatLog,
 } from "./chat-log.js";
 import { reloadHeartbeat, startHeartbeat } from "./heartbeat.js";
 
@@ -117,9 +117,8 @@ ${lines.join("\n")}
 async function runClaude(msg: QueuedMessage): Promise<string | null> {
   lastReplySent = false;
 
-  // Load recent chat history for context
-  const allEntries = loadChatLog();
-  const recentEntries = allEntries.slice(-REPLAY_MAX);
+  // Load recent chat history for context (tail-read only, no full file load)
+  const recentEntries = loadRecentChatLog(REPLAY_MAX);
 
   let prompt: string;
   if (recentEntries.length > 0) {
