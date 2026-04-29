@@ -12,12 +12,17 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { exec } from "node:child_process";
 
 const BASE_URL = "https://ilinkai.weixin.qq.com";
 const BOT_TYPE = "3";
 const DIR = path.join(process.env.HOME || "~", ".claude", "weixin");
 const CRED_FILE = path.join(DIR, "account.json");
 const ALLOW_FILE = path.join(DIR, "allowlist.json");
+
+function logBrowser(msg: string) {
+  process.stderr.write(`[setup] ${msg}\n`);
+}
 
 // ── Allowlist management ─────────────────────────────────────────────────────
 
@@ -193,6 +198,49 @@ if (fs.existsSync(CRED_FILE)) {
 console.log("正在获取微信登录二维码...\n");
 const qrResp = await fetchQRCode();
 
+// Write QR code HTML and open in browser
+const qrHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>微信扫码登录</title>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; text-align: center; padding-top: 60px; background: #f5f5f5; }
+  h2 { color: #333; }
+  .box { display: inline-block; background: #fff; padding: 30px 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+  .hint { color: #999; margin-top: 16px; font-size: 14px; }
+</style></head>
+<body>
+<div class="box">
+  <h2>打开微信扫一扫</h2>
+  <div id="qrcode"></div>
+  <p class="hint">请在 8 分钟内完成扫码确认</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+new QRCode(document.getElementById("qrcode"), {
+  text: ${JSON.stringify(qrResp.qrcode_img_content)},
+  width: 280, height: 280,
+  correctLevel: QRCode.CorrectLevel.M
+});
+</script>
+</body>
+</html>`;
+
+const qrHtmlPath = path.join(DIR, "qrcode.html");
+fs.mkdirSync(DIR, { recursive: true });
+fs.writeFileSync(qrHtmlPath, qrHtml, { encoding: "utf-8" });
+logBrowser(`二维码页面已保存: ${qrHtmlPath}`);
+
+// Open in browser
+const openCmd = process.platform === "win32"
+  ? `start "" "${qrHtmlPath}"`
+  : process.platform === "darwin"
+    ? `open "${qrHtmlPath}"`
+    : `xdg-open "${qrHtmlPath}"`;
+exec(openCmd, (err) => {
+  if (err) console.log(`请在浏览器中打开此页面: ${qrHtmlPath}`);
+});
+
+// Terminal QR code (fallback)
 try {
   const qrterm = await import("qrcode-terminal");
   await new Promise<void>((resolve) => {
@@ -206,10 +254,10 @@ try {
     );
   });
 } catch {
-  console.log(`请在浏览器中打开此链接扫码: ${qrResp.qrcode_img_content}\n`);
+  console.log(`请在浏览器中打开此页面扫码: ${qrHtmlPath}\n`);
 }
 
-console.log("请用微信扫描上方二维码...\n");
+console.log("请用微信扫描浏览器或终端中的二维码...\n");
 
 const deadline = Date.now() + 480_000;
 let scannedPrinted = false;
