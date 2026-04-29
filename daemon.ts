@@ -114,10 +114,6 @@ ${lines.join("\n")}
 
 // ── Claude Process Manager ─────────────────────────────────────────────────────
 
-function sanitizeSessionId(senderId: string): string {
-  return senderId.replace(/[@.:/\\]/g, "-");
-}
-
 async function runClaude(msg: QueuedMessage): Promise<string | null> {
   lastReplySent = false;
 
@@ -140,8 +136,7 @@ async function runClaude(msg: QueuedMessage): Promise<string | null> {
     prompt = buildPrompt(msg);
   }
 
-  const sessionId = `weixin-${sanitizeSessionId(msg.senderId)}`;
-  log(`启动 Claude: session=${sessionId}`);
+  log("启动 Claude...");
 
   return new Promise((resolve) => {
     let stdout = "";
@@ -149,7 +144,6 @@ async function runClaude(msg: QueuedMessage): Promise<string | null> {
 
     const child = spawn("claude", [
       "-p", prompt,
-      "--resume", sessionId,
       "--mcp-config", MCP_CONFIG_PATH,
       "--output-format", "text",
     ], {
