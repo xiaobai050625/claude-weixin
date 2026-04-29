@@ -26,7 +26,7 @@ export function printDoctor(): void {
   if (account?.accountId) {
     console.log(`✓ 微信登录：已保存账号 ${account.accountId}`);
   } else {
-    console.log("✗ 微信登录：还没完成，运行 一键扫码登录.cmd");
+    console.log("✗ 微信登录：还没完成，运行 2. 一键扫码登录.cmd");
   }
 
   const allowlist = readJson(allowlistPath);
@@ -36,16 +36,16 @@ export function printDoctor(): void {
   } else if (allowlist?.auto_allow_next) {
     console.log("! 白名单：已开启自动添加，下一个发消息的人会被允许");
   } else {
-    console.log("✗ 白名单：为空，运行 bun cli.ts setup --allow-all 开启自动添加");
+    console.log("✗ 白名单：为空，运行 3. 一键开启白名单.cmd");
   }
 
   const mcp = readJson(mcpPath);
   if (mcp?.mcpServers?.weixin) {
     console.log("✓ MCP 配置：当前目录已配置 weixin");
   } else {
-    console.log("✗ MCP 配置：当前目录还没安装，运行 一键安装MCP配置.cmd");
+    console.log("✗ MCP 配置：当前目录还没安装，运行 4. 一键安装MCP配置.cmd");
   }
 
   console.log("\n启动命令：");
-  console.log("  一键启动守护进程.cmd");
+  console.log("  6. 一键启动守护进程.cmd");
 }
