@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 echo ========================================
-echo   ¢Ü Î¢ÐÅ Claude ÇÅ½Ó ¡ª ×´Ì¬¼ì²é
+echo   4. Î¢ÐÅ Claude ÇÅ½Ó ¡ª ×´Ì¬¼ì²é
 echo ========================================
 echo.
 bun cli.ts doctor
