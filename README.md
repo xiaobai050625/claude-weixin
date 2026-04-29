@@ -40,13 +40,14 @@
 
 目标：让你在微信里发一句话，Claude Code 能收到并回复。
 
-**1. 获取源码**
+**1. 获取源码 & 安装依赖**
 
 ```bash
 git clone https://github.com/xiaobai050625/claude-weixin.git
 cd claude-weixin
-bun install
 ```
+
+双击 `一键安装依赖.cmd`。
 
 **2. 扫码登录**
 
@@ -96,6 +97,7 @@ bun daemon.ts
 
 | 脚本 | 功能 |
 |------|------|
+| `一键安装依赖.cmd` | 安装项目依赖（新设备第一步） |
 | `一键扫码登录.cmd` | 扫码登录微信 |
 | `一键状态检查.cmd` | 检查登录、白名单、MCP 配置状态 |
 | `一键安装MCP配置.cmd` | 在当前目录生成 MCP 连接配置 |
