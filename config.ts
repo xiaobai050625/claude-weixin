@@ -1,21 +1,18 @@
 /**
- * Shared configuration constants and logging for the WeChat Channel plugin.
+ * Claude-weixin 配置常量
  */
 
 import path from "node:path";
 
-// ── Channel Identity ─────────────────────────────────────────────────────────
+export const CHANNEL_NAME = "weixin";
+export const CHANNEL_VERSION = "1.0.0";
 
-export const CHANNEL_NAME = "wechat";
-export const CHANNEL_VERSION = "0.1.0";
+// ── 路径 ──────────────────────────────────────────────────────────────────────
 
-// ── Paths ────────────────────────────────────────────────────────────────────
-
-export const DIR = process.env.WECHAT_CHANNEL_DIR || path.join(
+export const DIR = process.env.WEIXIN_DIR || path.join(
   process.env.HOME || "~",
   ".claude",
-  "channels",
-  "wechat",
+  "weixin",
 );
 export const CRED_FILE = path.join(DIR, "account.json");
 export const ALLOW_FILE = path.join(DIR, "allowlist.json");
@@ -24,13 +21,13 @@ export const CTX_FILE = path.join(DIR, "context_tokens.json");
 export const CHAT_LOG_FILE = path.join(DIR, "chat_history.jsonl");
 export const MEDIA_DIR = path.join(DIR, "media");
 
-// ── CDN ──────────────────────────────────────────────────────────────────────
+// ── CDN ───────────────────────────────────────────────────────────────────────
 
 export const CDN_BASE = "https://novac2c.cdn.weixin.qq.com/c2c";
 export const CDN_DOWNLOAD_URL = `${CDN_BASE}/download`;
 export const CDN_UPLOAD_URL = `${CDN_BASE}/upload`;
 
-// ── Timeouts ─────────────────────────────────────────────────────────────────
+// ── 超时和重试 ────────────────────────────────────────────────────────────────
 
 export const LONG_POLL_TIMEOUT_MS = 35_000;
 export const MAX_CONSECUTIVE_FAILURES = 3;
@@ -38,7 +35,7 @@ export const BACKOFF_DELAY_MS = 30_000;
 export const RETRY_DELAY_MS = 2_000;
 export const REPLAY_MAX = 200;
 
-// ── Logging (stderr only — stdout is MCP stdio) ─────────────────────────────
+// ── 日志 (stderr — 不影响 stdout) ─────────────────────────────────────────────
 
 export function sanitizeText(value: unknown): string {
   return String(value)
@@ -57,9 +54,9 @@ export function errorText(err: unknown): string {
 }
 
 export function log(msg: string) {
-  process.stderr.write(`[wechat] ${msg}\n`);
+  process.stderr.write(`[weixin] ${msg}\n`);
 }
 
 export function logError(msg: string) {
-  process.stderr.write(`[wechat] ERROR: ${sanitizeText(msg)}\n`);
+  process.stderr.write(`[weixin] ERROR: ${sanitizeText(msg)}\n`);
 }

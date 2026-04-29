@@ -1,29 +1,25 @@
 /**
- * Heartbeat: scheduled messages to 用户 throughout the day.
+ * 心跳调度：定时触发消息，让 Claude 主动联系用户。
+ * 不依赖 MCP Channels，改用回调函数触发 Claude CLI。
  */
 
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
-
 import { DIR, errorText, log, logError } from "./config.js";
 import type { HBConfig, HBScheduleEntry } from "./types.js";
 import { loadAllowlist } from "./allowlist.js";
 
-// ── Paths ────────────────────────────────────────────────────────────────────
-
 const HB_CONFIG_FILE = path.join(DIR, "heartbeat-config.json");
 const HB_SCHEDULE_FILE = path.join(DIR, "heartbeat-schedule.json");
-
-// ── Module-level state ───────────────────────────────────────────────────────
 
 const heartbeatTimers: ReturnType<typeof setTimeout>[] = [];
 let midnightTimer: ReturnType<typeof setTimeout> | null = null;
 const configHashes = new Map<string, string>();
 
-// ── Config Loading ───────────────────────────────────────────────────────────
+type HeartbeatCallback = (senderId: string, nickname: string, timeStr: string, label: string) => void;
+let onHeartbeat: HeartbeatCallback | null = null;
 
 export function loadHBConfig(): HBConfig {
   try {
@@ -39,8 +35,6 @@ export function loadHBConfig(): HBConfig {
     random: { active_start: 6, active_end: 22, daily_count: 10, min_per_hour: 1 },
   };
 }
-
-// ── Schedule Generation ──────────────────────────────────────────────────────
 
 export function generateDailySchedule(config: HBConfig): HBScheduleEntry[] {
   const { fixed, random } = config;
@@ -81,23 +75,17 @@ export function saveSchedule(entries: HBScheduleEntry[]): void {
   log(`💓 时间表已写入（${entries.length} 条）`);
 }
 
-// ── Reload ───────────────────────────────────────────────────────────────────
-
-export function reloadHeartbeat(server: Server): number {
-  // 1. 清掉所有 heartbeat timer
+export function reloadHeartbeat(): number {
   for (const t of heartbeatTimers) clearTimeout(t);
   heartbeatTimers.length = 0;
 
-  // 2. 重新读配置
   const config = loadHBConfig();
 
-  // 3. 更新配置哈希
   try {
     const content = fs.readFileSync(HB_CONFIG_FILE, "utf-8");
     configHashes.set(HB_CONFIG_FILE, crypto.createHash("md5").update(content).digest("hex"));
   } catch {}
 
-  // 4. 找目标用户
   const list = loadAllowlist();
   const target = list.allowed[0];
   if (!target) {
@@ -105,30 +93,19 @@ export function reloadHeartbeat(server: Server): number {
     return 0;
   }
 
-  // 5. 总是重新生成 schedule
   const entries = generateDailySchedule(config);
   saveSchedule(entries);
 
-  // 6. 构建触发函数
-  const fireHeartbeat = async (entry: HBScheduleEntry) => {
+  const fireHeartbeat = (entry: HBScheduleEntry) => {
     const timeStr = `${String(entry.hour).padStart(2, "0")}:${String(entry.minute).padStart(2, "0")}`;
-    const labelStr = entry.label ? `（${entry.label}）` : "";
+    const labelStr = entry.label || "";
+    log(`💓 heartbeat @ ${timeStr}${entry.label ? `（${entry.label}）` : ""} → ${target.nickname}`);
 
-    log(`💓 heartbeat @ ${timeStr}${labelStr} → ${target.nickname}`);
-
-    await server.notification({
-      method: "notifications/claude/channel",
-      params: {
-        content: `[heartbeat] 现在是 ${timeStr}${labelStr}。根据时间段给用户发一条自然的微信消息，不要机械化。如果正在聊天就不用发。如果无法发送就跳过。`,
-        meta: {
-          sender: "heartbeat",
-          sender_id: target.id,
-        },
-      },
-    });
+    if (onHeartbeat) {
+      onHeartbeat(target.id, target.nickname, timeStr, labelStr);
+    }
   };
 
-  // 7. 为未来的时间点排定 timer
   const now = new Date();
   let scheduled = 0;
   for (const entry of entries) {
@@ -136,9 +113,7 @@ export function reloadHeartbeat(server: Server): number {
     t.setHours(entry.hour, entry.minute, 0, 0);
     const delayMs = t.getTime() - now.getTime();
     if (delayMs > 0) {
-      heartbeatTimers.push(setTimeout(() => {
-        fireHeartbeat(entry).catch(err => logError(`Heartbeat error: ${errorText(err)}。下一步：确认 Claude Code channel 仍在运行。`));
-      }, delayMs));
+      heartbeatTimers.push(setTimeout(() => { fireHeartbeat(entry); }, delayMs));
       scheduled++;
     }
   }
@@ -147,49 +122,34 @@ export function reloadHeartbeat(server: Server): number {
   return scheduled;
 }
 
-// ── Config File Watcher ──────────────────────────────────────────────────────
-
-export function startConfigWatcher(server: Server) {
+function startConfigWatcher() {
   try {
     fs.watch(DIR, (_eventType, filename) => {
       if (!filename || filename !== "heartbeat-config.json") return;
-
       let content: string;
-      try {
-        content = fs.readFileSync(HB_CONFIG_FILE, "utf-8");
-      } catch {
-        return;
-      }
-
+      try { content = fs.readFileSync(HB_CONFIG_FILE, "utf-8"); } catch { return; }
       const newHash = crypto.createHash("md5").update(content).digest("hex");
       if (configHashes.get(HB_CONFIG_FILE) === newHash) return;
-
       configHashes.set(HB_CONFIG_FILE, newHash);
-      log("🔄 hot-reload: heartbeat-config.json 已变更，重新加载");
-
-      const count = reloadHeartbeat(server);
-      log(`🔄 hot-reload: ${count} 条 heartbeat 已重新排定`);
+      log("🔄 hot-reload: heartbeat-config.json 已变更");
+      reloadHeartbeat();
     });
-
-    log("👁 fs.watch: 监听配置目录");
+    log("👁 监听配置目录变更");
   } catch (err) {
-    logError(`fs.watch 启动失败: ${errorText(err)}。下一步：手动调用 wechat_reload_heartbeat 刷新心跳配置。`);
+    logError(`fs.watch 启动失败: ${errorText(err)}`);
   }
 }
 
-// ── Start ────────────────────────────────────────────────────────────────────
+export function startHeartbeat(callback: HeartbeatCallback) {
+  onHeartbeat = callback;
 
-export function startHeartbeat(server: Server) {
-  // 初始化配置哈希
   try {
     const content = fs.readFileSync(HB_CONFIG_FILE, "utf-8");
     configHashes.set(HB_CONFIG_FILE, crypto.createHash("md5").update(content).digest("hex"));
   } catch {}
 
-  // 排定今天的 heartbeat
-  reloadHeartbeat(server);
+  reloadHeartbeat();
 
-  // 每天零点重新生成（midnightTimer 单独存，reload 不清它）
   const scheduleMidnight = () => {
     const now = new Date();
     const midnight = new Date(now);
@@ -198,7 +158,7 @@ export function startHeartbeat(server: Server) {
     const delayMs = midnight.getTime() - now.getTime();
 
     midnightTimer = setTimeout(() => {
-      reloadHeartbeat(server);
+      reloadHeartbeat();
       scheduleMidnight();
     }, delayMs);
 
@@ -206,7 +166,5 @@ export function startHeartbeat(server: Server) {
   };
 
   scheduleMidnight();
-
-  // 启动配置文件监听
-  startConfigWatcher(server);
+  startConfigWatcher();
 }

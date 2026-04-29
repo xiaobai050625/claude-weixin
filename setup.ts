@@ -15,7 +15,7 @@ import path from "node:path";
 
 const BASE_URL = "https://ilinkai.weixin.qq.com";
 const BOT_TYPE = "3";
-const DIR = path.join(process.env.HOME || "~", ".claude", "channels", "wechat");
+const DIR = path.join(process.env.HOME || "~", ".claude", "weixin");
 const CRED_FILE = path.join(DIR, "account.json");
 const ALLOW_FILE = path.join(DIR, "allowlist.json");
 
@@ -253,9 +253,9 @@ while (Date.now() < deadline) {
       console.log(`   凭据保存至: ${CRED_FILE}`);
       console.log();
       console.log("下一步：");
-      console.log("  1. 在目标项目目录运行 bun /path/to/claude-code-wechat/cli.ts install");
-      console.log("  2. 运行 bun /path/to/claude-code-wechat/cli.ts doctor 检查状态");
-      console.log("  3. 启动 claude --dangerously-load-development-channels server:wechat");
+      console.log("  1. 在目标项目目录运行 bun /path/to/Claude-weixin/cli.ts install");
+      console.log("  2. 运行 bun /path/to/Claude-weixin/cli.ts doctor 检查状态");
+      console.log("  3. 启动守护进程: bun daemon.ts");
       process.exit(0);
     }
   }

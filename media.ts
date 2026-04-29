@@ -1,5 +1,5 @@
 /**
- * Media handling: AES encrypt/decrypt, CDN download/upload, voice synthesis.
+ * Media handling: AES encrypt/decrypt, CDN download/upload.
  */
 
 import crypto from "node:crypto";
@@ -122,7 +122,7 @@ export async function downloadMediaItem(item: MessageItem): Promise<DownloadedMe
       return { type: "file", filePath, fileName: origName };
     }
 
-    // Video — download + ffmpeg frame extraction + audio extraction
+    // Video — download only (Claude 不支持原生视频输入，仅保存文件)
     if (item.type === 5 && item.video_item) {
       const queryParam = item.video_item.media?.encrypt_query_param;
       const keyStr = item.video_item.media?.aes_key;
@@ -134,54 +134,6 @@ export async function downloadMediaItem(item: MessageItem): Promise<DownloadedMe
       const fileName = `video_${ts}.mp4`;
       const filePath = path.join(MEDIA_DIR, fileName);
       fs.writeFileSync(filePath, decrypted);
-
-      const framesDir = path.join(MEDIA_DIR, `video_${ts}_frames`);
-      const framePaths: string[] = [];
-      try {
-        fs.mkdirSync(framesDir, { recursive: true });
-        const { execFileSync } = await import("node:child_process");
-
-        let duration = 0;
-        try {
-          const out = execFileSync(
-            "ffprobe",
-            ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", filePath],
-            { encoding: "utf-8", timeout: 10_000 },
-          ).trim();
-          duration = parseFloat(out) || 0;
-        } catch {}
-
-        if (duration > 0) {
-          const frameCount = Math.min(4, Math.max(1, Math.floor(duration)));
-          const interval = duration / (frameCount + 1);
-          for (let i = 1; i <= frameCount; i++) {
-            const seekTo = (interval * i).toFixed(2);
-            const fp = path.join(framesDir, `frame_${i}.jpg`);
-            try {
-              execFileSync(
-                "ffmpeg",
-                ["-y", "-ss", seekTo, "-i", filePath, "-vframes", "1", "-q:v", "2", fp],
-                { timeout: 15_000, stdio: "pipe" },
-              );
-              framePaths.push(fp);
-            } catch {}
-          }
-          log(`📎 视频抽帧: ${framePaths.length} 帧 → ${framesDir}`);
-        }
-
-        // Extract audio
-        const audioFile = path.join(MEDIA_DIR, `video_${ts}_audio.wav`);
-        try {
-          execFileSync(
-            "ffmpeg",
-            ["-y", "-i", filePath, "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audioFile],
-            { timeout: 15_000, stdio: "pipe" },
-          );
-          log(`📎 视频音频: ${audioFile}`);
-        } catch {}
-      } catch (err) {
-        logError(`视频处理失败: ${errorText(err)}。下一步：确认 ffmpeg/ffprobe 已安装；否则视频仍会保存，但不会抽帧。`);
-      }
 
       return { type: "video", filePath, fileName };
     }
@@ -386,23 +338,9 @@ export async function extractContent(msg: { item_list?: MessageItem[] }): Promis
         }
         log(`📎 ${labels[media.type]}: ${media.filePath}`);
 
-        // For videos, list extracted frames so Claude can read them
+        // For videos, note the file for user reference
         if (media.type === "video") {
-          const framesDir = media.filePath.replace(".mp4", "_frames");
-          try {
-            const frames = fs.readdirSync(framesDir).filter((f: string) => f.endsWith(".jpg")).sort();
-            if (frames.length > 0) {
-              parts.push(`[视频关键帧] 共 ${frames.length} 帧:`);
-              for (const frame of frames) {
-                parts.push(`  ${path.join(framesDir, frame)}`);
-              }
-            }
-          } catch {}
-          // Check for extracted audio
-          const audioFile = media.filePath.replace(".mp4", "_audio.wav");
-          if (fs.existsSync(audioFile)) {
-            parts.push(`[视频音频] ${audioFile}`);
-          }
+          parts.push("视频文件已保存，Claude 不支持原生视频播放。");
         }
       } else {
         const typeNames: Record<number, string> = { 2: "图片", 3: "语音", 4: "文件", 5: "视频" };

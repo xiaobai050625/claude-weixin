@@ -1,27 +1,22 @@
 {
-  "name": "claude-code-wechat",
-  "version": "0.4.0",
-  "description": "WeChat Channel plugin for Claude Code — bridge WeChat messages via official ilink API",
+  "name": "claude-weixin",
+  "version": "1.0.0",
+  "description": "微信 ↔ Claude Code 桥接 — 独立守护进程模式",
+  "author": "xiaobai050625",
   "type": "module",
   "scripts": {
+    "start": "bun daemon.ts",
     "setup": "bun cli.ts setup",
     "doctor": "bun cli.ts doctor",
-    "start": "bun wechat-channel.ts"
+    "link": "bun cli.ts install"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/LinekForge/claude-code-wechat.git"
-  },
-  "homepage": "https://github.com/LinekForge/claude-code-wechat",
-  "author": "Linek & Forge",
   "keywords": [
     "claude-code",
     "wechat",
+    "weixin",
     "mcp",
-    "channel",
     "clawbot",
-    "ilink",
-    "anthropic"
+    "ilink"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
