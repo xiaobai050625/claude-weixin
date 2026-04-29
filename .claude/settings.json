@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "Agent(*)",
+      "NotebookEdit(*)",
+      "AskUserQuestion(*)",
+      "Skill(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "TaskCreate(*)",
+      "TaskUpdate(*)",
+      "TaskGet(*)",
+      "TaskList(*)",
+      "TaskOutput(*)",
+      "TaskStop(*)",
+      "EnterPlanMode(*)",
+      "ExitPlanMode(*)",
+      "EnterWorktree(*)",
+      "ExitWorktree(*)",
+      "CronCreate(*)",
+      "CronDelete(*)",
+      "CronList(*)",
+      "ScheduleWakeup(*)",
+      "Plan(*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\xiaobai625\\project",
+      "C:\\Users\\xiaobai625\\.claude"
+    ]
+  }
+}
