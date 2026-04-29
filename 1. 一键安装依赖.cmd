@@ -1,13 +1,16 @@
 @echo off
 cd /d "%~dp0"
 echo ========================================
-echo   3. 微信 Claude 桥接 — 安装 MCP 配置
+echo   微信 Claude 桥接 — 安装依赖
 echo ========================================
 echo.
-echo 在当前目录安装 MCP 配置到 Claude...
+echo 正在安装项目依赖...
 echo.
-bun cli.ts install
+call bun install
 echo.
 echo ========================================
+echo 依赖安装完成！
+echo ========================================
+echo.
 echo 按任意键关闭...
 pause

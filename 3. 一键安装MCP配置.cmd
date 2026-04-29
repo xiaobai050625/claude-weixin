@@ -1,13 +1,12 @@
 @echo off
 cd /d "%~dp0"
 echo ========================================
-echo   2. 微信 Claude 桥接 — 扫码登录
+echo   微信 Claude 桥接 — 安装 MCP 配置
 echo ========================================
 echo.
-echo 正在获取微信登录二维码...
-echo 二维码将显示在终端中，打开微信扫一扫即可。
+echo 在当前目录安装 MCP 配置到 Claude...
 echo.
-bun cli.ts setup
+call bun cli.ts install
 echo.
 echo ========================================
 echo 按任意键关闭...

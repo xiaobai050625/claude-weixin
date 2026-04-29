@@ -1,16 +1,11 @@
 @echo off
 cd /d "%~dp0"
 echo ========================================
-echo   1. 微信 Claude 桥接 — 安装依赖
+echo   微信 Claude 桥接 — 状态检查
 echo ========================================
 echo.
-echo 正在安装项目依赖...
-echo.
-bun install
+call bun cli.ts doctor
 echo.
 echo ========================================
-echo 依赖安装完成！
-echo ========================================
-echo.
 echo 按任意键关闭...
 pause
