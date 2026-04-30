@@ -74,6 +74,51 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: [],
       },
     },
+    {
+      name: "window_spawn",
+      description: "启动一个 Claude Code 子窗口。visible 类型会在桌面弹出可见窗口，headless 在后台静默运行。",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          type: {
+            type: "string",
+            description: "窗口类型：visible（桌面可见）或 headless（后台静默）",
+          },
+          label: {
+            type: "string",
+            description: "窗口标签，方便识别",
+          },
+          source: {
+            type: "string",
+            description: "来源标记：wechat / local / agent",
+          },
+        },
+        required: ["type", "label"],
+      },
+    },
+    {
+      name: "window_list",
+      description: "列出当前所有子窗口及其状态。",
+      inputSchema: {
+        type: "object" as const,
+        properties: {},
+        required: [],
+      },
+    },
+    {
+      name: "window_kill",
+      description: "终止指定子窗口。",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          id: {
+            type: "string",
+            description: "窗口 ID（从 window_list 获取）",
+          },
+        },
+        required: ["id"],
+      },
+    },
   ],
 }));
 
@@ -82,6 +127,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     wechat_reply: "/api/reply",
     wechat_send_file: "/api/send-file",
     wechat_reload_heartbeat: "/api/reload-heartbeat",
+    window_spawn: "/api/window-spawn",
+    window_list: "/api/window-list",
+    window_kill: "/api/window-kill",
   };
 
   const endpoint = endpointMap[req.params.name];

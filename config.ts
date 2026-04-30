@@ -36,6 +36,13 @@ export const BACKOFF_DELAY_MS = 30_000;
 export const RETRY_DELAY_MS = 2_000;
 export const REPLAY_MAX = 20;
 
+// 窗口管理
+export const WINDOW_SPAWN_DELAY_MS = 2500; // 多实例启动间隔，避免 SIGINT 交叉
+export const MAX_WINDOWS = 8;              // 同时最多子窗口数
+
+// Hooks
+export const HOOKS_CONFIG_PATH = path.join(DIR, "hooks-config.json");
+
 // ── 日志 (stderr — 不影响 stdout) ─────────────────────────────────────────────
 
 export function sanitizeText(value: unknown): string {

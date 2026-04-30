@@ -129,3 +129,48 @@ export interface HBScheduleEntry {
   type: "fixed" | "random";
   label?: string;
 }
+
+// ── Window Manager ─────────────────────────────────────────────────────────────
+
+export type WindowType = "visible" | "headless";
+export type WindowSource = "wechat" | "local" | "agent";
+export type WindowStatus = "starting" | "running" | "done" | "error" | "killed";
+
+export interface WindowInfo {
+  id: string;
+  pid: number;
+  type: WindowType;
+  source: WindowSource;
+  status: WindowStatus;
+  label: string;
+  startTime: string;
+  endTime?: string;
+}
+
+// ── Hooks Events ───────────────────────────────────────────────────────────────
+
+export interface HookEvent {
+  event: string;
+  window_id?: string;
+  session_id?: string;
+  transcript_path?: string;
+  tool_name?: string;
+  tool_input?: Record<string, unknown>;
+  cwd?: string;
+  permission_kind?: string;
+  timestamp: string;
+}
+
+export const SOURCE_EMOJI: Record<WindowSource, string> = {
+  wechat: "📱",
+  local: "🖥",
+  agent: "🤖",
+};
+
+export const STATUS_LABEL: Record<WindowStatus, string> = {
+  starting: "启动中",
+  running: "运行中",
+  done: "已完成",
+  error: "出错",
+  killed: "已终止",
+};

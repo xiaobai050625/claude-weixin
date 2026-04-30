@@ -15,6 +15,8 @@ import { spawn } from "node:child_process";
 
 import type { AccountData } from "./types.js";
 import { MSG_TYPE_USER } from "./types.js";
+import { SOURCE_EMOJI, STATUS_LABEL } from "./types.js";
+import type { WindowInfo, WindowSource } from "./types.js";
 
 import {
   CHANNEL_NAME,
@@ -26,6 +28,7 @@ import {
   BACKOFF_DELAY_MS,
   RETRY_DELAY_MS,
   REPLAY_MAX,
+  WINDOW_SPAWN_DELAY_MS,
   errorText,
   log,
   logError,
@@ -43,6 +46,21 @@ import {
   markChatLogSent,
 } from "./chat-log.js";
 import { reloadHeartbeat, startHeartbeat } from "./heartbeat.js";
+import {
+  spawnWindow,
+  killWindow,
+  listWindows,
+  getWindow,
+  injectToWindow,
+  runningCount,
+  setWindowEventCallback,
+} from "./window-manager.js";
+import {
+  handleHooksRoute,
+  setHooksNotifyCallback,
+  setWindowLookup,
+  type HooksNotification,
+} from "./hooks-handler.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -111,6 +129,118 @@ function buildHistoryReplayPrompt(entries: { from: string; text: string; ts: str
 ${lines.join("\n")}
 
 [系统] 以上是历史记录，现在开始处理新消息。`;
+}
+
+// ── Remote Command Parser ──────────────────────────────────────────────────────
+
+const REMOTE_CMD_RE = /^@(\S+)\s+(.+)$/s;
+
+interface ParsedCommand {
+  targetId: string;
+  action: string;
+}
+
+function parseRemoteCommand(text: string): ParsedCommand | null {
+  const m = REMOTE_CMD_RE.exec(text.trim());
+  if (!m) return null;
+  return { targetId: m[1], action: m[2].trim() };
+}
+
+/**
+ * 处理远程窗口控制指令，返回 true 表示已处理（不需要再走 Claude）。
+ */
+async function handleRemoteCommand(
+  senderId: string,
+  nick: string,
+  cmd: ParsedCommand,
+): Promise<boolean> {
+  if (!account) return false;
+
+  const ctxToken = contextTokens.get(senderId);
+  if (!ctxToken) return false;
+
+  const { targetId, action } = cmd;
+  const actionLower = action.toLowerCase().trim();
+
+  // ── list / 列表 ──────────────────────────────────────────────────────────
+  if (actionLower === "list" || actionLower === "列表" || actionLower === "ls") {
+    const all = listWindows();
+    if (all.length === 0) {
+      await sendText(account.baseUrl, account.token, senderId, "📋 当前没有运行中的子窗口", ctxToken);
+    } else {
+      const lines = all.map((w) => {
+        const emoji = SOURCE_EMOJI[w.source];
+        const status = STATUS_LABEL[w.status];
+        return `${emoji} \`${w.id}\` — ${w.label} [${status}] (PID:${w.pid})`;
+      });
+      await sendText(account.baseUrl, account.token, senderId, `📋 子窗口列表 (${all.length}/${runningCount()} 运行中):\n\n${lines.join("\n")}`, ctxToken);
+    }
+    return true;
+  }
+
+  // ── kill / 终止 ──────────────────────────────────────────────────────────
+  if (actionLower.startsWith("kill ") || actionLower.startsWith("终止 ") || actionLower === "kill") {
+    const killId = actionLower.replace(/^(kill|终止)\s*/i, "").trim() || targetId;
+    const ok = killWindow(killId);
+    if (ok) {
+      await sendText(account.baseUrl, account.token, senderId, `✅ 已终止窗口 \`${killId}\``, ctxToken);
+    } else {
+      await sendText(account.baseUrl, account.token, senderId, `❌ 未找到窗口 \`${killId}\` 或已退出`, ctxToken);
+    }
+    return true;
+  }
+
+  // ── status / 状态 ────────────────────────────────────────────────────────
+  if (actionLower === "status" || actionLower === "状态" || actionLower === "st") {
+    const win = getWindow(targetId);
+    if (!win) {
+      await sendText(account.baseUrl, account.token, senderId, `❌ 未找到窗口 \`${targetId}\``, ctxToken);
+    } else {
+      const emoji = SOURCE_EMOJI[win.source];
+      const status = STATUS_LABEL[win.status];
+      await sendText(account.baseUrl, account.token, senderId, `${emoji} 窗口 \`${win.id}\`\n标签: ${win.label}\n状态: ${status}\nPID: ${win.pid}\n启动: ${win.startTime}`, ctxToken);
+    }
+    return true;
+  }
+
+  // ── spawn / 启动新窗口 ───────────────────────────────────────────────────
+  if (actionLower.startsWith("new ") || actionLower.startsWith("spawn ") || actionLower.startsWith("启动 ")) {
+    const label = actionLower.replace(/^(new|spawn|启动)\s*/i, "").trim().slice(0, 40) || "微信远程窗口";
+    const win = await spawnWindow("visible", "wechat", label, PORT);
+    if (win) {
+      await sendText(account.baseUrl, account.token, senderId, `🖥 已启动可见窗口\nID: \`${win.id}\`\n标签: ${win.label}\n在桌面查看 Claude 窗口继续操作`, ctxToken);
+    } else {
+      await sendText(account.baseUrl, account.token, senderId, `❌ 启动失败：可能已达窗口数上限 (${runningCount()} 个)`, ctxToken);
+    }
+    return true;
+  }
+
+  // ── inject / 注入指令到指定窗口 ──────────────────────────────────────────
+  {
+    const ok = injectToWindow(targetId, action);
+    if (ok) {
+      await sendText(account.baseUrl, account.token, senderId, `✅ 已注入指令到窗口 \`${targetId}\``, ctxToken);
+    } else {
+      await sendText(account.baseUrl, account.token, senderId, `❌ 无法注入窗口 \`${targetId}\`（可能已退出或 stdin 不可写）`, ctxToken);
+    }
+    return true;
+  }
+}
+
+// ── Hooks → WeChat Notification Bridge ─────────────────────────────────────────
+
+function sendHooksNotification(notif: HooksNotification): void {
+  if (!account) return;
+  const list = loadAllowlist();
+  // 通知所有授权用户（或至少第一个）
+  const target = list.allowed[0];
+  if (!target) return;
+
+  const ctxToken = contextTokens.get(target.id);
+  if (!ctxToken || !checkRateLimit()) return;
+
+  sendText(account.baseUrl, account.token, target.id, notif.text, ctxToken).catch(() => {});
+  log(`→ Hooks 通知微信: ${notif.text.slice(0, 60)}`);
 }
 
 // ── Claude Process Manager ─────────────────────────────────────────────────────
@@ -365,6 +495,12 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   const url = new URL(req.url || "/", `http://localhost:${PORT}`);
 
   try {
+    // Hooks 路由优先处理
+    if (req.method === "POST" && url.pathname.startsWith("/hooks/")) {
+      const handled = await handleHooksRoute(req, res, url.pathname);
+      if (handled) return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/ping") {
       jsonReply(res, 200, { status: "ok", loggedIn: !!account });
       return;
@@ -393,6 +529,42 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       jsonReply(res, result.success ? 200 : 400, {
         content: [{ type: "text", text: result.success ? `heartbeat reloaded: ${result.count} entries` : "heartbeat 重载失败" }],
       });
+      return;
+    }
+
+    // ── 窗口管理 API ───────────────────────────────────────────────────────
+
+    if (req.method === "POST" && url.pathname === "/api/window-spawn") {
+      const body = await jsonBody(req);
+      const type = (body.type === "visible" ? "visible" : "headless") as "visible" | "headless";
+      const source = (body.source || "local") as WindowSource;
+      const label = (body.label || "未命名窗口").slice(0, 40);
+      const win = await spawnWindow(type, source, label, PORT);
+      if (win) {
+        jsonReply(res, 200, { content: [{ type: "text", text: `window spawned: ${win.id}` }], window: win });
+      } else {
+        jsonReply(res, 400, { content: [{ type: "text", text: "spawn failed (max windows reached)" }] });
+      }
+      return;
+    }
+
+    if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/window-list") {
+      const windows = listWindows();
+      jsonReply(res, 200, { content: [{ type: "text", text: `${windows.length} windows` }], windows });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/window-kill") {
+      const body = await jsonBody(req);
+      const ok = killWindow(body.id || body.window_id || "");
+      jsonReply(res, ok ? 200 : 400, { content: [{ type: "text", text: ok ? "killed" : "not found" }] });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/window-inject") {
+      const body = await jsonBody(req);
+      const ok = injectToWindow(body.id || body.window_id || "", body.text || "");
+      jsonReply(res, ok ? 200 : 400, { content: [{ type: "text", text: ok ? "injected" : "failed" }] });
       return;
     }
 
@@ -508,12 +680,26 @@ async function startPolling(acct: AccountData): Promise<never> {
 
         log(`← ${nick}: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`);
 
-        appendChatLog({
-          ts: new Date().toISOString(),
-          direction: "in",
-          from: nick,
-          text,
-        });
+        // 远程窗口指令检测 (@窗口ID 指令)
+        const remoteCmd = parseRemoteCommand(text);
+        if (remoteCmd) {
+          appendChatLog({
+            ts: new Date().toISOString(),
+            direction: "in",
+            from: nick,
+            text,
+          });
+          const handled = await handleRemoteCommand(senderId, nick, remoteCmd);
+          if (handled) continue;
+          // 未处理则继续走正常消息流程
+        } else {
+          appendChatLog({
+            ts: new Date().toISOString(),
+            direction: "in",
+            from: nick,
+            text,
+          });
+        }
 
         messageQueue.push({
           senderId,
@@ -599,6 +785,22 @@ async function main() {
       log(`  允许: ${entry.nickname} (${entry.id})`);
     }
   }
+
+  // Wire hooks ↔ WeChat notification bridge
+  setHooksNotifyCallback(sendHooksNotification);
+  setWindowLookup(getWindow);
+
+  // Wire window events → WeChat notification
+  setWindowEventCallback((event, win) => {
+    log(`窗口事件: ${event} — ${win.label} (${win.id})`);
+    if (event === "window-done" || event === "window-error") {
+      const emoji = SOURCE_EMOJI[win.source];
+      const msg = event === "window-done"
+        ? `${emoji} 窗口「${win.label}」已完成`
+        : `${emoji} 窗口「${win.label}」出错退出`;
+      sendHooksNotification({ senderId: "", text: msg });
+    }
+  });
 
   // Generate MCP config for Claude -p mode
   generateMcpConfig();
