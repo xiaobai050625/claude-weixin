@@ -19,6 +19,7 @@ export const ALLOW_FILE = path.join(DIR, "allowlist.json");
 export const SYNC_FILE = path.join(DIR, "sync_buf.txt");
 export const CTX_FILE = path.join(DIR, "context_tokens.json");
 export const CHAT_LOG_FILE = path.join(DIR, "chat_history.jsonl");
+export const STATE_FILE = path.join(DIR, "state.json");
 export const MEDIA_DIR = path.join(DIR, "media");
 
 // ── CDN ───────────────────────────────────────────────────────────────────────

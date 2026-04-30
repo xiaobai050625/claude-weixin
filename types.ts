@@ -31,6 +31,14 @@ export interface ChatLogEntry {
   direction: "in" | "out";
   from: string;
   text: string;
+  contentHash?: string;
+  sentToClaude?: boolean;
+}
+
+export interface ChatState {
+  lastByteOffset: number;
+  lastHash: string;
+  updatedAt: string;
 }
 
 // ── WeChat Message ───────────────────────────────────────────────────────────

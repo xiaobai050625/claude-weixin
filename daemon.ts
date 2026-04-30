@@ -39,7 +39,8 @@ import {
   loadContextTokens,
   saveContextTokens,
   appendChatLog,
-  loadRecentChatLog,
+  loadUnsynchronizedChatLog,
+  markChatLogSent,
 } from "./chat-log.js";
 import { reloadHeartbeat, startHeartbeat } from "./heartbeat.js";
 
@@ -117,8 +118,8 @@ ${lines.join("\n")}
 async function runClaude(msg: QueuedMessage): Promise<string | null> {
   lastReplySent = false;
 
-  // Load recent chat history for context (tail-read only, no full file load)
-  const recentEntries = loadRecentChatLog(REPLAY_MAX);
+  // 增量加载：只取上次上传后新增的消息，不重复传历史
+  const recentEntries = loadUnsynchronizedChatLog(REPLAY_MAX);
 
   let prompt: string;
   if (recentEntries.length > 0) {
@@ -198,6 +199,9 @@ async function processQueue(): Promise<void> {
 
     try {
       const response = await runClaude(msg);
+
+      // 标记本轮上下文已上传，下次不再重复发送
+      markChatLogSent();
 
       if (response) {
         // Send Claude's stdout as reply
